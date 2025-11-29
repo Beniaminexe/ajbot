@@ -259,12 +259,12 @@ async def mcup(ctx: commands.Context):
     proxmox = get_proxmox()
 
     await ctx.send(
-        f"🟡 Starting Minecraft server container (CT `{MC_CTID}`) on node `Proxmox`..."
+        f"🟡 Starting Minecraft server container (CT `{MC_CTID}`) on node `{PVE_NODE}`..."
     )
 
     try:
         # LXC container start
-        proxmox.nodes(PVE_HOST).lxc(MC_CTID).status.start.post()
+        proxmox.nodes(PVE_NODE).lxc(MC_CTID).status.start.post()
     except Exception as e:
         await ctx.send(f"🔴 Failed to start CT `{MC_CTID}`:\n```{e}```")
         return
@@ -278,12 +278,12 @@ async def mcdown(ctx: commands.Context):
     proxmox = get_proxmox()
 
     await ctx.send(
-        f"🟡 Stopping Minecraft server container (CT `{MC_CTID}`) on node `Proxmox`..."
+        f"🟡 Stopping Minecraft server container (CT `{MC_CTID}`) on node `{PVE_NODE}`..."
     )
 
     try:
         # Graceful shutdown; switch to .stop.post() if you want a hard stop
-        proxmox.nodes(PVE_HOST).lxc(MC_CTID).status.shutdown.post()
+        proxmox.nodes(PVE_NODE).lxc(MC_CTID).status.shutdown.post()
     except Exception as e:
         await ctx.send(f"🔴 Failed to stop CT `{MC_CTID}`:\n```{e}```")
         return
