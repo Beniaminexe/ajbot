@@ -1,0 +1,44 @@
+server:
+  port: 2333
+  address: 0.0.0.0
+
+lavalink:
+  server:
+    password: "youshallnotpass"
+    sources:
+      youtube: false        # ❗ disable built-in YouTube
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      http: true
+      local: false
+    filters:
+      volume: true
+      equalizer: true
+      karaoke: true
+      timescale: true
+      tremolo: true
+      vibrato: true
+      distortion: true
+      rotation: true
+
+  plugins:
+    # Use the current YouTube plugin version (as of 2025, e.g. 1.13.5)
+    # See https://maven.lavalink.dev/releases/dev/lavalink/youtube/youtube-plugin/ for latest.
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.13.5"
+      snapshot: false
+
+# Extra config specifically for the YouTube plugin
+plugins:
+  youtube:
+    enabled: true
+    allowSearch: true              # enables ytsearch: and ytmsearch:
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    clients:
+      - MUSIC                      # supports ytmsearch: (YouTube Music)
+      - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
+

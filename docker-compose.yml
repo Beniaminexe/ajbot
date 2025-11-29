@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  discord-pve-bot:
+    build: ./bot
+    container_name: discord-pve-bot
+    restart: unless-stopped
+    env_file:
+        - ./bot/.env
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4-alpine
+    container_name: lavalink
+    restart: unless-stopped
+    environment:
+      - _JAVA_OPTIONS=-Xmx1G        # 1GB RAM is enough to start
+      - LAVALINK_SERVER_PASSWORD=youshallnotpass
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml

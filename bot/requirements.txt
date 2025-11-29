@@ -1,0 +1,6 @@
+discord.py==2.4.0
+proxmoxer
+requests
+python-dotenv
+wavelink>=3.3.0
+
