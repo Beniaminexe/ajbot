@@ -255,56 +255,40 @@ async def stop(ctx: commands.Context):
 
 @bot.command(name="mcup")
 async def mcup(ctx: commands.Context):
-    """Start the Minecraft server VM (vmid 301) on your Proxmox node."""
-    vmid = 301
+    """Start the Minecraft LXC container (CT 302) on your Proxmox node."""
+    proxmox = get_proxmox()
+
+    await ctx.send(
+        f"🟡 Starting Minecraft server container (CT `{MC_CTID}`) on node `{PVE_NODE}`..."
+    )
 
     try:
-        proxmox = get_proxmox()
-        nodes = proxmox.nodes.get()
-        if not nodes:
-            await ctx.send("I couldn't find any Proxmox nodes. 🤔")
-            return
-
-        node_name = nodes[0]["node"]  # used internally only
-
-        await ctx.send(
-            f"🟡 Starting Minecraft server VM (ID `{vmid}`)..."
-        )
-
-        proxmox.nodes(node_name).qemu(vmid).status.start.post()
-
-        await ctx.send("🟢 Minecraft server VM is starting up!")
+        # LXC container start
+        proxmox.nodes(PVE_NODE).lxc(MC_CTID).status.start.post()
     except Exception as e:
-        await ctx.send(f"🔴 Failed to start VM `{vmid}`:\n```{e}```")
+        await ctx.send(f"🔴 Failed to start CT `{MC_CTID}`:\n```{e}```")
+        return
+
+    await ctx.send("🟢 Minecraft server container is starting up!")
 
 
 @bot.command(name="mcdown")
 async def mcdown(ctx: commands.Context):
-    """Shut down the Minecraft server VM (vmid 301) on your Proxmox node."""
-    vmid = 301
+    """Stop the Minecraft LXC container (CT 302) on your Proxmox node."""
+    proxmox = get_proxmox()
+
+    await ctx.send(
+        f"🟡 Stopping Minecraft server container (CT `{MC_CTID}`) on node `{PVE_NODE}`..."
+    )
 
     try:
-        proxmox = get_proxmox()
-        nodes = proxmox.nodes.get()
-        if not nodes:
-            await ctx.send("I couldn't find any Proxmox nodes. 🤔")
-            return
-
-        node_name = nodes[0]["node"]  # used internally only
-
-        await ctx.send(
-            f"🟡 Shutting down Minecraft server VM (ID `{vmid}`)..."
-        )
-
-        # Graceful ACPI shutdown
-        proxmox.nodes(node_name).qemu(vmid).status.shutdown.post()
-        # For a hard poweroff, you'd use:
-        # proxmox.nodes(node_name).qemu(vmid).status.stop.post()
-
-        await ctx.send("🟢 Shutdown signal sent. The VM should power off shortly.")
+        # Graceful shutdown; switch to .stop.post() if you want a hard stop
+        proxmox.nodes(PVE_NODE).lxc(MC_CTID).status.shutdown.post()
     except Exception as e:
-        await ctx.send(f"🔴 Failed to shut down VM `{vmid}`:\n```{e}```")
+        await ctx.send(f"🔴 Failed to stop CT `{MC_CTID}`:\n```{e}```")
+        return
 
+    await ctx.send("🟢 Minecraft server container is shutting down!")
 
 
 
