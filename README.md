@@ -1,4 +1,4 @@
-````markdown
+
 # Ajbot 🧠🔧  
 Discord bot for Proxmox control, Minecraft server management, and music playback via Lavalink — all running in Docker.
 
