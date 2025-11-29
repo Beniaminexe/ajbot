@@ -23,7 +23,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 intents = discord.Intents.default()
 intents.message_content = True
-
+MC_CTID = 302
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
