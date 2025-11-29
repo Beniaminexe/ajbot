@@ -7,12 +7,12 @@ import wavelink
 
 # ------------- ENV -------------
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-PVE_NODE = os.getenv("PVE_NODE")
+#PVE_NODE = os.getenv("PVE_NODE")
 PVE_HOST = os.getenv("PVE_HOST")
 PVE_USER = os.getenv("PVE_USER")
 PVE_TOKEN_NAME = os.getenv("PVE_TOKEN_NAME")
 PVE_TOKEN_VALUE = os.getenv("PVE_TOKEN_VALUE")
-#PVE_NODE = os.getenv("PVE_NODE", PVE_HOST)
+PVE_NODE = os.getenv("PVE_NODE", PVE_HOST)
 
 GITHUB_USER = os.getenv("GITHUB_USER", "Beniaminexe")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "")
