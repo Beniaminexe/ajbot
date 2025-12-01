@@ -1,3 +1,4 @@
+import asyncio
 import os
 import discord
 from discord.ext import commands
@@ -290,7 +291,39 @@ async def mcdown(ctx: commands.Context):
 
     await ctx.send("🟢 Minecraft server container is shutting down!")
 
+@bot.command(name="clear")
+@commands.has_permissions(manage_messages=True)
+@commands.bot_has_permissions(manage_messages=True)
+async def clear(ctx: commands.Context, amount: int = 50):
+    """
+    Clear recent messages in the current text channel.
 
+    Usage:
+      !clear          -> clears last 50 messages
+      !clear 10       -> clears last 10 messages
+      !clear 100      -> clears last 100 messages
+    """
+    # basic sanity check
+    if amount <= 0:
+        await ctx.send("❌ Amount must be a positive number.")
+        return
+
+    # Discord bulk delete hard limit is 100
+    if amount > 100:
+        amount = 100
+
+    # +1 to also delete the command message itself
+    deleted = await ctx.channel.purge(limit=amount + 1)
+
+    # deleted includes the command; subtract 1 for “real” cleared messages
+    cleared = max(len(deleted) - 1, 0)
+
+    msg = await ctx.send(f"🧹 Cleared `{cleared}` messages in {ctx.channel.mention}.")
+    # remove the confirmation after a short delay to keep things tidy
+    await asyncio.sleep(5)
+    await msg.delete()
+    
+    
 
 # ------------- RUN -------------
 
