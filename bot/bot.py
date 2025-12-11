@@ -25,7 +25,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 intents = discord.Intents.default()
 intents.message_content = True
 MC_CTID = 302
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="/", intents=intents, case_insensitive=True)
 
 
 def get_proxmox():
@@ -205,7 +205,7 @@ async def stopvm(ctx, vmid: int):
     except Exception as e:
         await ctx.send(f"❌ Failed to stop VM `{vmid}`: `{e}`")
 
-@bot.command(name="play")
+@bot.command(name="play", aliases=["p"])
 async def play(ctx: commands.Context, *, query: str):
     # User must be in a voice channel
     if not ctx.author.voice or not ctx.author.voice.channel:
