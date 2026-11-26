@@ -64,6 +64,34 @@ async def on_ready():
 async def on_wavelink_node_ready(payload: wavelink.NodeReadyEventPayload):
     log.info("Lavalink node %s ready (resumed=%s)", payload.node.identifier, payload.resumed)
 
+    if payload.resumed:
+        return  # same Lavalink process came back within the resume window: players survived
+
+    # Fresh Lavalink session (container restarted/recreated). Lavalink has forgotten every
+    # player, but this bot still remembers being in voice. Drop that stale state so the
+    # next /play starts clean instead of joining and instantly leaving.
+    for vc in list(bot.voice_clients):
+        if isinstance(vc, wavelink.Player):
+            log.warning("Lavalink restarted: dropping stale player in guild %s", vc.guild.id)
+            try:
+                await vc.disconnect()
+            except Exception:
+                log.exception("Could not drop stale player in guild %s", vc.guild.id)
+
+
+@bot.event
+async def on_command_error(ctx: commands.Context, error: commands.CommandError):
+    # Replaces discord.py's default handler, which only printed to the console:
+    # users spamming /play got no reply at all when something broke.
+    if isinstance(error, commands.CommandNotFound):
+        return
+    if isinstance(error, commands.MissingRequiredArgument):
+        return await ctx.send(f"Missing `{error.param.name}`. Example: `/play never gonna give you up`")
+    if isinstance(error, (commands.MissingPermissions, commands.BotMissingPermissions)):
+        return await ctx.send(str(error))
+    log.error("Command %s failed", ctx.command, exc_info=error)
+    await ctx.send("⚠️ That didn't work. Try again; if it keeps failing, check the bot logs.")
+
 
 @bot.event
 async def on_wavelink_websocket_closed(payload: wavelink.WebsocketClosedEventPayload):
