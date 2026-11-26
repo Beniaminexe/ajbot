@@ -37,8 +37,12 @@ plugins:
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
     clients:
-      - MUSIC                      # supports ytmsearch: (YouTube Music)
-      - ANDROID_VR
-      - WEB
-      - WEBEMBEDDED
+      # Queried in order; a client that fails hands over to the next one.
+      - MUSIC                      # search only (ytmsearch:), never used for playback
+      - ANDROID_VR                 # playback, no login
+      - TVHTML5_SIMPLY             # playback, no login
+      - MWEB                       # playback, no login
+      - IOS                        # playback, no login
+      - WEB                        # needs a poToken more and more often
+      - WEBEMBEDDED                # fails on videos with embedding disabled
 
