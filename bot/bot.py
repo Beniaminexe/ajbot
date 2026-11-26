@@ -106,6 +106,10 @@ async def on_wavelink_websocket_closed(payload: wavelink.WebsocketClosedEventPay
 async def on_wavelink_track_exception(payload: wavelink.TrackExceptionEventPayload):
     title = payload.track.title if payload.track else None
     log.error("Track exception on %r: %s", title, payload.exception)
+    # Tell the channel instead of leaving "Now playing" followed by silence.
+    home = getattr(payload.player, "home", None) if payload.player else None
+    if home:
+        await home.send(f"⚠️ YouTube refused to play `{title}`. Try another song or a different upload.")
 
 
 @bot.event
@@ -178,6 +182,7 @@ async def play(ctx: commands.Context, *, query: str):
     # partial = play the next queued track automatically, no recommendations.
     # (default is disabled, which meant queued songs never started)
     player.autoplay = wavelink.AutoPlayMode.partial
+    player.home = ctx.channel  # where to report playback errors
 
     # Search YouTube via Lavalink
     # This works with plain text (song name) OR a direct URL.
@@ -253,6 +258,8 @@ async def clear(ctx: commands.Context, amount: int = 50):
 if __name__ == "__main__":
     if not DISCORD_TOKEN:
         raise SystemExit("DISCORD_TOKEN not set.")
-    bot.run(DISCORD_TOKEN)
+    # root_logger=True: without it discord.py only configures its own logger,
+    # and every log.info() from this file (and wavelink) is silently dropped.
+    bot.run(DISCORD_TOKEN, root_logger=True)
 
 
