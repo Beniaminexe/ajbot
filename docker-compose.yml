@@ -8,7 +8,9 @@ services:
     env_file:
         - ./bot/.env
   lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:4-alpine
+    # Pinned on purpose: 4.2.0+ is required for Discord's DAVE (E2EE) voice.
+    # Non-alpine because DAVE uses a native library (libdave); glibc is the safe bet.
+    image: ghcr.io/lavalink-devs/lavalink:4.2.2
     container_name: lavalink
     restart: unless-stopped
     environment:

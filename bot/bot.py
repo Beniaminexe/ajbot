@@ -1,19 +1,15 @@
 import asyncio
+import logging
 import os
 import discord
 from discord.ext import commands
-from proxmoxer import ProxmoxAPI
 import requests
 import wavelink
 
+log = logging.getLogger("ajbot")
+
 # ------------- ENV -------------
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-#PVE_NODE = os.getenv("PVE_NODE")
-PVE_HOST = os.getenv("PVE_HOST")
-PVE_USER = os.getenv("PVE_USER")
-PVE_TOKEN_NAME = os.getenv("PVE_TOKEN_NAME")
-PVE_TOKEN_VALUE = os.getenv("PVE_TOKEN_VALUE")
-PVE_NODE = os.getenv("PVE_NODE", PVE_HOST)
 
 GITHUB_USER = os.getenv("GITHUB_USER", "Beniaminexe")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "")
@@ -24,19 +20,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 intents = discord.Intents.default()
 intents.message_content = True
-MC_CTID = 302
-bot = commands.Bot(command_prefix="/", intents=intents, case_insensitive=True)
-
-
-def get_proxmox():
-    """Return a ProxmoxAPI client."""
-    return ProxmoxAPI(
-        PVE_HOST,
-        user=PVE_USER,
-        token_name=PVE_TOKEN_NAME,
-        token_value=PVE_TOKEN_VALUE,
-        verify_ssl=False
-    )
+bot =commands.Bot(command_prefix="/", intents=intents, case_insensitive=True)
 
 
 def github_headers():
@@ -47,11 +31,8 @@ def github_headers():
 
 # ------------- EVENTS -------------
 
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
-    await bot.change_presence(activity=discord.Game(name="with Proxmox & GitHub"))
-
+# Only ONE on_ready may exist: a second @bot.event with the same name
+# silently replaces the first (that is why the presence never showed).
 @bot.event
 async def on_ready():
     # Prevent multiple connections if Discord reconnects
@@ -59,7 +40,8 @@ async def on_ready():
         return
 
     bot.lavalink_ready = True
-    print(f"Logged in as {bot.user} (id: {bot.user.id})")
+    log.info("Logged in as %s (id: %s)", bot.user, bot.user.id)
+    await bot.change_presence(activity=discord.Game(name="music | /play"))
 
     # Connect to the Lavalink node (the container named 'lavalink')
     await wavelink.Pool.connect(
@@ -72,7 +54,35 @@ async def on_ready():
         client=bot,
     )
 
-    print("Lavalink node connected.")
+    log.info("Lavalink connect requested.")
+
+
+# ------------- LAVALINK EVENTS (visibility) -------------
+# Without these, a failed voice connection is completely silent.
+
+@bot.event
+async def on_wavelink_node_ready(payload: wavelink.NodeReadyEventPayload):
+    log.info("Lavalink node %s ready (resumed=%s)", payload.node.identifier, payload.resumed)
+
+
+@bot.event
+async def on_wavelink_websocket_closed(payload: wavelink.WebsocketClosedEventPayload):
+    # Discord closed the VOICE connection. Code 4017 = client lacks DAVE (E2EE) support.
+    log.warning(
+        "Discord voice connection closed: code=%s reason=%r by_remote=%s",
+        payload.code, payload.reason, payload.by_remote,
+    )
+
+
+@bot.event
+async def on_wavelink_track_exception(payload: wavelink.TrackExceptionEventPayload):
+    title = payload.track.title if payload.track else None
+    log.error("Track exception on %r: %s", title, payload.exception)
+
+
+@bot.event
+async def on_wavelink_track_stuck(payload: wavelink.TrackStuckEventPayload):
+    log.warning("Track stuck on %r (threshold %sms)", payload.track.title, payload.threshold)
 
 
 # ------------- COMMANDS -------------
@@ -80,58 +90,6 @@ async def on_ready():
 @bot.command(name="ping")
 async def ping(ctx):
     await ctx.send("Pong! ✅ Bot is alive on Proxmox.")
-
-@bot.command(name="pve")
-async def pve_status(ctx):
-    """Show basic Proxmox node status."""
-    try:
-        proxmox = get_proxmox()
-        nodes = proxmox.nodes.get()
-        if not nodes:
-            await ctx.send("Could not fetch nodes from Proxmox.")
-            return
-
-        lines = []
-        for n in nodes:
-            name = n.get("node")
-            cpu = round(n.get("cpu", 0) * 100, 1)
-            mem_used = n.get("memory", 0)
-            mem_total = n.get("maxmem", 1)
-            mem_pct = round(mem_used / mem_total * 100, 1)
-            lines.append(f"**{name}**: CPU `{cpu}%`, RAM `{mem_pct}%`")
-
-        await ctx.send("\n".join(lines))
-    except Exception as e:
-        await ctx.send(f"Error talking to Proxmox: `{e}`")
-
-
-@bot.command(name="vms")
-async def list_vms(ctx):
-    """List running VMs/containers."""
-    try:
-        proxmox = get_proxmox()
-        msg_lines = []
-        for node in proxmox.nodes.get():
-            node_name = node["node"]
-            qemu_vms = proxmox.nodes(node_name).qemu.get()
-            lxcs = proxmox.nodes(node_name).lxc.get()
-
-            running = [vm for vm in qemu_vms if vm.get("status") == "running"]
-            running_lxc = [c for c in lxcs if c.get("status") == "running"]
-
-            if not running and not running_lxc:
-                msg_lines.append(f"**{node_name}**: no running guests.")
-                continue
-
-            msg_lines.append(f"**{node_name}**:")
-            for vm in running:
-                msg_lines.append(f"- VM {vm['vmid']}: {vm.get('name', 'no-name')} (QEMU)")
-            for c in running_lxc:
-                msg_lines.append(f"- CT {c['vmid']}: {c.get('name', 'no-name')} (LXC)")
-        await ctx.send("\n".join(msg_lines))
-    except Exception as e:
-        await ctx.send(f"Error listing VMs: `{e}`")
-
 
 @bot.command(name="ghcommits")
 async def gh_commits(ctx, repo: str = None):
@@ -169,41 +127,7 @@ async def gh_commits(ctx, repo: str = None):
         await ctx.send("\n".join(lines))
     except Exception as e:
         await ctx.send(f"Error talking to GitHub: `{e}`")
-@bot.command(name="startvm")
-async def startvm(ctx, vmid: int):
-    """Start a VM by ID and announce it."""
-    try:
-        proxmox = get_proxmox()
-        nodes = proxmox.nodes.get()
-        if not nodes:
-            await ctx.send("I couldn't find any Proxmox nodes. 🤔")
-            return
 
-        node_name = nodes[0]["node"]  # assumes single-node cluster
-        proxmox.nodes(node_name).qemu(vmid).status.start.post()
-
-        await ctx.send(f"▶️ Start requested for VM `{vmid}` on node `{node_name}`.")
-    except Exception as e:
-        await ctx.send(f"❌ Failed to start VM `{vmid}`: `{e}`")
-
-
-@bot.command(name="stopvm")
-async def stopvm(ctx, vmid: int):
-    """Shut down a VM by ID and announce it."""
-    try:
-        proxmox = get_proxmox()
-        nodes = proxmox.nodes.get()
-        if not nodes:
-            await ctx.send("I couldn't find any Proxmox nodes. 🤔")
-            return
-
-        node_name = nodes[0]["node"]
-        # graceful shutdown instead of hard stop
-        proxmox.nodes(node_name).qemu(vmid).status.shutdown.post()
-
-        await ctx.send(f"⏹ Shutdown requested for VM `{vmid}` on node `{node_name}`.")
-    except Exception as e:
-        await ctx.send(f"❌ Failed to stop VM `{vmid}`: `{e}`")
 
 @bot.command(name="play", aliases=["p"])
 async def play(ctx: commands.Context, *, query: str):
@@ -217,7 +141,15 @@ async def play(ctx: commands.Context, *, query: str):
     if ctx.voice_client and isinstance(ctx.voice_client, wavelink.Player):
         player: wavelink.Player = ctx.voice_client
     else:
-        player: wavelink.Player = await channel.connect(cls=wavelink.Player)
+        try:
+            player: wavelink.Player = await channel.connect(cls=wavelink.Player)
+        except wavelink.ChannelTimeoutException:
+            log.exception("Voice connect to %s timed out", channel)
+            return await ctx.send("I couldn't join the voice channel (timed out).")
+
+    # partial = play the next queued track automatically, no recommendations.
+    # (default is disabled, which meant queued songs never started)
+    player.autoplay = wavelink.AutoPlayMode.partial
 
     # Search YouTube via Lavalink
     # This works with plain text (song name) OR a direct URL.
@@ -253,43 +185,6 @@ async def stop(ctx: commands.Context):
         await ctx.voice_client.disconnect()
         await ctx.send("Disconnected from voice.")
 
-
-@bot.command(name="mcup")
-async def mcup(ctx: commands.Context):
-    """Start the Minecraft LXC container (CT 302) on your Proxmox node."""
-    proxmox = get_proxmox()
-
-    await ctx.send(
-        f"🟡 Starting Minecraft server container (CT `{MC_CTID}`) on node `{PVE_NODE}`..."
-    )
-
-    try:
-        # LXC container start
-        proxmox.nodes(PVE_NODE).lxc(MC_CTID).status.start.post()
-    except Exception as e:
-        await ctx.send(f"🔴 Failed to start CT `{MC_CTID}`:\n```{e}```")
-        return
-
-    await ctx.send("🟢 Minecraft server container is starting up!")
-
-
-@bot.command(name="mcdown")
-async def mcdown(ctx: commands.Context):
-    """Stop the Minecraft LXC container (CT 302) on your Proxmox node."""
-    proxmox = get_proxmox()
-
-    await ctx.send(
-        f"🟡 Stopping Minecraft server container (CT `{MC_CTID}`) on node `{PVE_NODE}`..."
-    )
-
-    try:
-        # Graceful shutdown; switch to .stop.post() if you want a hard stop
-        proxmox.nodes(PVE_NODE).lxc(MC_CTID).status.shutdown.post()
-    except Exception as e:
-        await ctx.send(f"🔴 Failed to stop CT `{MC_CTID}`:\n```{e}```")
-        return
-
-    await ctx.send("🟢 Minecraft server container is shutting down!")
 
 @bot.command(name="clear")
 @commands.has_permissions(manage_messages=True)

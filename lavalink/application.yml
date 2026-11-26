@@ -26,7 +26,7 @@ lavalink:
   plugins:
     # Use the current YouTube plugin version (as of 2025, e.g. 1.13.5)
     # See https://maven.lavalink.dev/releases/dev/lavalink/youtube/youtube-plugin/ for latest.
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.13.5"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
       snapshot: false
 
 # Extra config specifically for the YouTube plugin

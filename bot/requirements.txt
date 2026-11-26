@@ -1,6 +1,6 @@
-discord.py==2.4.0
-proxmoxer
+# wavelink 3.5.x sends the voice channelId that Lavalink 4.2 needs for DAVE,
+# and it requires discord.py >= 2.7.0. Keep these two moving together.
+discord.py>=2.7.1,<2.8
+wavelink>=3.5.2,<3.6
 requests
 python-dotenv
-wavelink>=3.3.0
-
