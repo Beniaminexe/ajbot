@@ -169,6 +169,11 @@ async def play(ctx: commands.Context, *, query: str):
 
     channel = ctx.author.voice.channel
 
+    # While Lavalink restarts, wavelink keeps the OLD session id until it reconnects,
+    # so every request in that window gets a 404 "session not found". Say so instead.
+    if not any(n.status is wavelink.NodeStatus.CONNECTED for n in wavelink.Pool.nodes.values()):
+        return await ctx.send("🎛️ The music engine is restarting. Try again in about 30 seconds.")
+
     # Get or create a Wavelink player
     if ctx.voice_client and isinstance(ctx.voice_client, wavelink.Player):
         player: wavelink.Player = ctx.voice_client
