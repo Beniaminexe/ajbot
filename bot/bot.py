@@ -1,6 +1,9 @@
 import asyncio
 import logging
 import os
+import sys
+
+import aiohttp
 import discord
 from discord.ext import commands
 import requests
@@ -55,6 +58,41 @@ async def on_ready():
     )
 
     log.info("Lavalink connect requested.")
+    bot.lavalink_watchdog_task = asyncio.create_task(lavalink_watchdog())
+
+
+LAVALINK_CHECK_SECONDS = 20
+
+
+async def lavalink_watchdog():
+    """Restart the bot when Lavalink has forgotten our session.
+
+    wavelink 3.5.2 only reconnects when the Lavalink websocket closes *cleanly*
+    (websocket.py keep_alive handles CLOSED/CLOSING only). When the Lavalink
+    container is recreated the socket dies abruptly, the keep-alive task crashes
+    silently, and the node stays "CONNECTED" to a session that no longer exists:
+    every request 404s and the bot thinks old songs are still playing.
+
+    Detect exactly that case (Lavalink reachable, but 404 for our session) and exit.
+    Docker's restart policy brings the bot back with completely clean state.
+    """
+    while not bot.is_closed():
+        await asyncio.sleep(LAVALINK_CHECK_SECONDS)
+        for node in wavelink.Pool.nodes.values():
+            if node.status is not wavelink.NodeStatus.CONNECTED:
+                continue  # wavelink is reconnecting by itself; leave it alone
+            try:
+                await node.fetch_players()
+            except wavelink.LavalinkException as e:
+                if e.status == 404:
+                    log.error("Lavalink no longer knows session %s: restarting the bot for a clean state",
+                              node.session_id)
+                    bot.restart_requested = True
+                    await bot.close()
+                    return
+                log.warning("Lavalink health check returned HTTP %s", e.status)
+            except Exception as e:
+                log.warning("Lavalink unreachable (%s); waiting for it to come back", type(e).__name__)
 
 
 # ------------- LAVALINK EVENTS (visibility) -------------
@@ -89,6 +127,12 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError):
         return await ctx.send(f"Missing `{error.param.name}`. Example: `/play never gonna give you up`")
     if isinstance(error, (commands.MissingPermissions, commands.BotMissingPermissions)):
         return await ctx.send(str(error))
+    original = getattr(error, "original", error)
+    if isinstance(original, aiohttp.ClientConnectorError) or (
+        isinstance(original, wavelink.LavalinkException) and original.status == 404
+    ):
+        log.warning("Command %s hit a restarting Lavalink: %s", ctx.command, original)
+        return await ctx.send("🎛️ The music engine is restarting. Try again in about 30 seconds.")
     log.error("Command %s failed", ctx.command, exc_info=error)
     await ctx.send("⚠️ That didn't work. Try again; if it keeps failing, check the bot logs.")
 
@@ -266,5 +310,7 @@ if __name__ == "__main__":
     # root_logger=True: without it discord.py only configures its own logger,
     # and every log.info() from this file (and wavelink) is silently dropped.
     bot.run(DISCORD_TOKEN, root_logger=True)
+    if getattr(bot, "restart_requested", False):
+        sys.exit(1)  # non-zero: Docker restarts us and `docker ps` shows it happened
 
 
